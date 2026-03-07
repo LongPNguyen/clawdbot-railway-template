@@ -1,0 +1,30 @@
+{
+  "agents": {
+    "coordinator": {
+      "state": "idle",
+      "task": null,
+      "updatedAt": 0
+    },
+    "builder": {
+      "state": "idle",
+      "task": null,
+      "updatedAt": 0
+    },
+    "reviewer": {
+      "state": "idle",
+      "task": null,
+      "updatedAt": 0
+    },
+    "researcher": {
+      "state": "idle",
+      "task": null,
+      "updatedAt": 0
+    },
+    "outreach": {
+      "state": "idle",
+      "task": null,
+      "updatedAt": 0
+    }
+  },
+  "lastUpdate": 0
+}

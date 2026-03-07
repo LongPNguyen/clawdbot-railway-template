@@ -1,0 +1,1276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pixel Office — Company OS</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #0f172a;
+  overflow: hidden;
+  font-family: 'Courier New', monospace;
+  color: #e2e8f0;
+  width: 100vw;
+  height: 100vh;
+}
+#game-container {
+  position: relative;
+  width: 100vw;
+  height: calc(100vh - 48px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+canvas {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  cursor: crosshair;
+}
+/* Bottom toolbar */
+#toolbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 48px;
+  background: #1e293b;
+  border-top: 2px solid #334155;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  z-index: 100;
+}
+.agent-btn {
+  background: #334155;
+  border: 2px solid #475569;
+  border-radius: 6px;
+  color: #e2e8f0;
+  padding: 6px 14px;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s;
+}
+.agent-btn:hover { background: #475569; border-color: #64748b; }
+.agent-btn.selected { border-color: #60a5fa; background: #1e3a5f; }
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+#zoom-display {
+  margin-left: auto;
+  font-size: 13px;
+  color: #94a3b8;
+}
+/* Live/Demo indicator */
+#mode-indicator {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 250;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  border: 1px solid;
+}
+#mode-indicator.live {
+  background: rgba(22, 163, 74, 0.15);
+  border-color: #22c55e;
+  color: #22c55e;
+}
+#mode-indicator.demo {
+  background: rgba(234, 179, 8, 0.15);
+  border-color: #eab308;
+  color: #eab308;
+}
+#mode-indicator .blink-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: blink 1.5s infinite;
+}
+@keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+/* Status panel */
+#status-panel {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  width: 260px;
+  background: rgba(15, 23, 42, 0.95);
+  border: 2px solid #334155;
+  border-radius: 8px;
+  padding: 16px;
+  z-index: 200;
+  display: none;
+  font-size: 12px;
+  line-height: 1.5;
+}
+#status-panel.visible { display: block; }
+#status-panel .panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+#status-panel .panel-name {
+  font-size: 16px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#status-panel .close-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 18px;
+  cursor: pointer;
+}
+#status-panel .close-btn:hover { color: #e2e8f0; }
+.panel-divider {
+  border: none;
+  border-top: 1px solid #334155;
+  margin: 8px 0;
+}
+.panel-row {
+  display: flex;
+  justify-content: space-between;
+}
+.panel-label { color: #94a3b8; }
+.panel-value { color: #e2e8f0; font-weight: bold; }
+/* Toasts */
+#toast-container {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+.toast {
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid #334155;
+  border-left: 4px solid #60a5fa;
+  border-radius: 6px;
+  padding: 10px 16px;
+  font-size: 12px;
+  animation: slideIn 0.2s ease-out;
+  pointer-events: auto;
+  max-width: 340px;
+}
+.toast.green { border-left-color: #22c55e; }
+.toast.amber { border-left-color: #f59e0b; }
+.toast.red { border-left-color: #ef4444; }
+.toast.blue { border-left-color: #3b82f6; }
+.toast.gray { border-left-color: #6b7280; }
+@keyframes slideIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+</head>
+<body>
+<div id="game-container">
+  <canvas id="canvas"></canvas>
+</div>
+<div id="toolbar"></div>
+<div id="status-panel">
+  <div class="panel-header">
+    <div class="panel-name"><span class="status-dot" id="panel-dot"></span><span id="panel-agent-name"></span></div>
+    <button class="close-btn" id="panel-close">&times;</button>
+  </div>
+  <hr class="panel-divider">
+  <div class="panel-row"><span class="panel-label">Status:</span><span class="panel-value" id="panel-status"></span></div>
+  <div class="panel-row"><span class="panel-label">State Time:</span><span class="panel-value" id="panel-time"></span></div>
+  <hr class="panel-divider">
+  <div class="panel-row"><span class="panel-label">Task:</span></div>
+  <div class="panel-value" id="panel-task" style="margin-top:4px;font-size:11px;color:#cbd5e1;"></div>
+  <hr class="panel-divider">
+  <div class="panel-label" style="margin-bottom:4px;">Recent Activity:</div>
+  <div id="panel-activity" style="font-size:11px;color:#94a3b8;"></div>
+</div>
+<div id="mode-indicator" class="demo"><span class="blink-dot"></span><span id="mode-label">DEMO</span></div>
+<div id="toast-container"></div>
+
+<script>
+// ─── CONSTANTS ────────────────────────────────────────────────
+const TILE = 16;
+const COLS = 30;
+const ROWS = 20;
+const NATIVE_W = COLS * TILE; // 480
+const NATIVE_H = ROWS * TILE; // 320
+const MOVE_SPEED = 250; // ms per tile
+
+// ─── COLORS ───────────────────────────────────────────────────
+const COLORS = {
+  wall: '#475569',
+  wallTop: '#64748b',
+  floorWood: '#8B7355',
+  floorWoodAlt: '#7A6548',
+  floorCarpet: '#4a5568',
+  floorCarpetAlt: '#3f4a5c',
+  floorCorridor: '#6b7280',
+  floorCorridorAlt: '#5f6b78',
+  floorServer: '#374151',
+  floorServerAlt: '#2d3748',
+  door: '#92713a',
+};
+
+// Agent definitions
+const AGENT_DEFS = [
+  { id: 'printy',   name: 'Printy',   role: 'COO',       color: '#3b82f6', accent: '#f59e0b', deskPos: {x:4,y:3},  room: 'Command Desk' },
+  { id: 'forge',    name: 'Forge',    role: 'Tech Lead', color: '#10b981', accent: '#6b7280', deskPos: {x:11,y:3}, room: 'Engineering Bay' },
+  { id: 'sentinel', name: 'Sentinel', role: 'Security',  color: '#ef4444', accent: '#d1d5db', deskPos: {x:18,y:3}, room: 'Security Room' },
+  { id: 'cipher',   name: 'Cipher',   role: 'Research',  color: '#8b5cf6', accent: '#4338ca', deskPos: {x:25,y:3}, room: 'Research Library' },
+  { id: 'vanta',    name: 'Vanta',    role: 'Sales',     color: '#f97316', accent: '#1f2937', deskPos: {x:4,y:15}, room: 'Sales Bullpen' },
+];
+
+// Shared locations
+const COFFEE_POS = {x:12, y:15};
+const COUCH_POS = {x:16, y:16};
+
+// Status → color mapping
+const STATUS_COLORS = {
+  working: '#22c55e',
+  idle: '#eab308',
+  researching: '#3b82f6',
+  blocked: '#ef4444',
+  waiting_approval: '#f97316',
+  offline: '#6b7280',
+};
+
+// ─── TILE MAP ─────────────────────────────────────────────────
+// 0=wall, 1=floor, 2=corridor, 3=door, 4=furniture, 5=server floor
+const tileMap = [];
+for (let y = 0; y < ROWS; y++) {
+  tileMap[y] = [];
+  for (let x = 0; x < COLS; x++) {
+    tileMap[y][x] = 0; // default wall
+  }
+}
+
+// Helper to fill rect
+function fillTiles(x1, y1, x2, y2, val) {
+  for (let y = y1; y <= y2; y++)
+    for (let x = x1; x <= x2; x++)
+      if (y >= 0 && y < ROWS && x >= 0 && x < COLS) tileMap[y][x] = val;
+}
+
+// Rooms — interior floor
+fillTiles(2, 2, 6, 5, 1);   // Command Desk
+fillTiles(9, 2, 13, 5, 1);  // Engineering Bay
+fillTiles(16, 2, 20, 5, 1); // Security Room
+fillTiles(23, 2, 27, 5, 1); // Research Library
+fillTiles(2, 14, 6, 17, 1); // Sales Bullpen
+fillTiles(9, 14, 20, 17, 1); // Break Room
+fillTiles(23, 14, 27, 17, 5); // Server Room
+
+// Central corridor
+fillTiles(1, 7, 28, 12, 2);
+
+// Room walls are the default (0) — the outer ring and room dividers
+
+// Doorways (connecting rooms to corridor)
+fillTiles(4, 6, 5, 7, 3);   // Command → corridor
+fillTiles(11, 6, 12, 7, 3); // Engineering → corridor
+fillTiles(18, 6, 19, 7, 3); // Security → corridor
+fillTiles(25, 6, 26, 7, 3); // Research → corridor
+fillTiles(4, 12, 5, 14, 3); // Sales → corridor (adjusted: corridor ends at 12, room starts at 14)
+fillTiles(4, 13, 5, 13, 3);
+fillTiles(14, 12, 15, 14, 3); // Break room → corridor
+fillTiles(14, 13, 15, 13, 3);
+fillTiles(25, 12, 26, 14, 3); // Server → corridor
+fillTiles(25, 13, 26, 13, 3);
+
+// Furniture positions (non-walkable)
+const furnitureList = [];
+
+function placeFurniture(x, y, type, agentColor) {
+  tileMap[y][x] = 4;
+  furnitureList.push({x, y, type, color: agentColor || '#64748b'});
+}
+
+// Desks (2-wide) — placed at y=2 (behind where agent sits at y=3)
+function placeDesk(x, y, color) {
+  placeFurniture(x, y, 'desk', color);
+  placeFurniture(x+1, y, 'desk', color);
+}
+
+// Agent desks
+placeDesk(3, 2, '#3b82f6');  // Printy
+placeDesk(10, 2, '#10b981'); // Forge
+placeDesk(17, 2, '#ef4444'); // Sentinel
+placeDesk(24, 2, '#8b5cf6'); // Cipher
+placeDesk(3, 14, '#f97316'); // Vanta
+
+// Monitors on desks (decorative, same tile as desk)
+// Bookshelves in library
+placeFurniture(27, 2, 'bookshelf', '#8b6914');
+placeFurniture(27, 3, 'bookshelf', '#8b6914');
+placeFurniture(27, 4, 'bookshelf', '#8b6914');
+
+// Coffee machine
+placeFurniture(12, 14, 'coffee', '#a16207');
+
+// Couch (3-wide)
+placeFurniture(16, 17, 'couch', '#7c3aed');
+placeFurniture(17, 17, 'couch', '#7c3aed');
+placeFurniture(18, 17, 'couch', '#7c3aed');
+
+// Server racks
+placeFurniture(25, 14, 'server', '#1e40af');
+placeFurniture(27, 14, 'server', '#1e40af');
+placeFurniture(25, 16, 'server', '#1e40af');
+placeFurniture(27, 16, 'server', '#1e40af');
+
+// Plants
+placeFurniture(9, 14, 'plant', '#22c55e');
+placeFurniture(20, 17, 'plant', '#22c55e');
+
+// Whiteboard in command
+placeFurniture(6, 2, 'whiteboard', '#e2e8f0');
+
+// Presentation board in sales
+placeFurniture(6, 14, 'board', '#f97316');
+
+// Walkability grid
+const walkable = [];
+for (let y = 0; y < ROWS; y++) {
+  walkable[y] = [];
+  for (let x = 0; x < COLS; x++) {
+    const t = tileMap[y][x];
+    walkable[y][x] = (t === 1 || t === 2 || t === 3 || t === 5);
+  }
+}
+
+// ─── BFS PATHFINDING ──────────────────────────────────────────
+function bfs(sx, sy, ex, ey) {
+  if (sx === ex && sy === ey) return [];
+  if (!walkable[ey]?.[ex]) return null;
+
+  const visited = Array.from({length: ROWS}, () => new Uint8Array(COLS));
+  const parent = Array.from({length: ROWS}, () => new Array(COLS).fill(null));
+  const queue = [[sx, sy]];
+  visited[sy][sx] = 1;
+
+  const dirs = [[0,-1],[0,1],[-1,0],[1,0]];
+
+  while (queue.length > 0) {
+    const [cx, cy] = queue.shift();
+    for (const [dx, dy] of dirs) {
+      const nx = cx + dx, ny = cy + dy;
+      if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) continue;
+      if (visited[ny][nx] || !walkable[ny][nx]) continue;
+      visited[ny][nx] = 1;
+      parent[ny][nx] = [cx, cy];
+      if (nx === ex && ny === ey) {
+        // Reconstruct path
+        const path = [];
+        let px = ex, py = ey;
+        while (px !== sx || py !== sy) {
+          path.unshift({x: px, y: py});
+          const p = parent[py][px];
+          px = p[0]; py = p[1];
+        }
+        return path;
+      }
+      queue.push([nx, ny]);
+    }
+  }
+  return null; // unreachable
+}
+
+// ─── AGENT CLASS ──────────────────────────────────────────────
+class Agent {
+  constructor(def) {
+    this.id = def.id;
+    this.name = def.name;
+    this.role = def.role;
+    this.color = def.color;
+    this.accent = def.accent;
+    this.room = def.room;
+    this.deskPos = {...def.deskPos};
+
+    // Position (in tiles)
+    this.x = def.deskPos.x;
+    this.y = def.deskPos.y;
+
+    // Smooth pixel position for rendering
+    this.px = this.x * TILE;
+    this.py = this.y * TILE;
+
+    // FSM state: 'idle' | 'walking' | 'active'
+    this.fsmState = 'active';
+    this.agentState = 'working'; // working, idle, researching, blocked, waiting_approval, offline
+    this.task = 'Initializing...';
+    this.stateStartTime = Date.now();
+    this.activityLog = [];
+
+    // Movement
+    this.path = [];
+    this.moveTimer = 0;
+    this.direction = 'down'; // up, down, left, right
+
+    // Animation
+    this.animFrame = 0;
+    this.animTimer = 0;
+    this.walkFrame = 0;
+    this.walkTimer = 0;
+
+    // Idle wander
+    this.wanderTimer = 0;
+    this.wanderDelay = 3000 + Math.random() * 5000;
+
+    // Bubble
+    this.bubbleType = null; // '?', '!', '✔', '...'
+    this.bubbleTimer = 0;
+  }
+
+  setState(newState, task) {
+    if (this.agentState === newState) return;
+    const oldState = this.agentState;
+    this.agentState = newState;
+    this.stateStartTime = Date.now();
+    if (task) this.task = task;
+
+    this.activityLog.unshift(`${newState}: ${task || ''}`);
+    if (this.activityLog.length > 5) this.activityLog.pop();
+
+    // Determine target and transition FSM
+    let target = null;
+    switch (newState) {
+      case 'working':
+      case 'waiting_approval':
+        target = this.deskPos;
+        this.bubbleType = newState === 'waiting_approval' ? '?' : null;
+        break;
+      case 'researching':
+        target = this.deskPos;
+        break;
+      case 'blocked':
+        this.bubbleType = '!';
+        // Stay in place
+        this.fsmState = 'active';
+        return;
+      case 'idle':
+        this.bubbleType = null;
+        this.fsmState = 'idle';
+        this.wanderTimer = 0;
+        this.wanderDelay = 2000 + Math.random() * 3000;
+        return;
+      case 'offline':
+        this.bubbleType = null;
+        this.fsmState = 'idle';
+        return;
+    }
+
+    if (target) {
+      this.walkTo(target.x, target.y);
+    }
+  }
+
+  walkTo(tx, ty) {
+    const path = bfs(this.x, this.y, tx, ty);
+    if (path && path.length > 0) {
+      this.path = path;
+      this.fsmState = 'walking';
+      this.moveTimer = 0;
+    } else if (this.x === tx && this.y === ty) {
+      this.fsmState = 'active';
+    }
+  }
+
+  update(dt) {
+    // Animation timer
+    this.animTimer += dt;
+    if (this.animTimer > 300) {
+      this.animTimer = 0;
+      this.animFrame = (this.animFrame + 1) % 4;
+    }
+
+    // Bubble timer
+    if (this.bubbleType === '✔') {
+      this.bubbleTimer += dt;
+      if (this.bubbleTimer > 3000) {
+        this.bubbleType = null;
+        this.bubbleTimer = 0;
+      }
+    }
+
+    switch (this.fsmState) {
+      case 'walking':
+        this.updateWalking(dt);
+        break;
+      case 'idle':
+        this.updateIdle(dt);
+        break;
+      case 'active':
+        // Typing/reading animation at desk
+        break;
+    }
+
+    // Smooth pixel position (lerp towards tile position)
+    const targetPx = this.x * TILE;
+    const targetPy = this.y * TILE;
+    this.px += (targetPx - this.px) * 0.2;
+    this.py += (targetPy - this.py) * 0.2;
+    // Snap if close
+    if (Math.abs(this.px - targetPx) < 0.5) this.px = targetPx;
+    if (Math.abs(this.py - targetPy) < 0.5) this.py = targetPy;
+  }
+
+  updateWalking(dt) {
+    this.moveTimer += dt;
+    this.walkTimer += dt;
+    if (this.walkTimer > 150) {
+      this.walkTimer = 0;
+      this.walkFrame = (this.walkFrame + 1) % 4;
+    }
+
+    if (this.moveTimer >= MOVE_SPEED) {
+      this.moveTimer = 0;
+      if (this.path.length > 0) {
+        const next = this.path.shift();
+        // Direction
+        if (next.x > this.x) this.direction = 'right';
+        else if (next.x < this.x) this.direction = 'left';
+        else if (next.y > this.y) this.direction = 'down';
+        else if (next.y < this.y) this.direction = 'up';
+        this.x = next.x;
+        this.y = next.y;
+      }
+      if (this.path.length === 0) {
+        // Arrived
+        if (this.agentState === 'idle' || this.agentState === 'offline') {
+          this.fsmState = 'idle';
+          this.wanderTimer = 0;
+          this.wanderDelay = 2000 + Math.random() * 4000;
+        } else {
+          this.fsmState = 'active';
+        }
+      }
+    }
+  }
+
+  updateIdle(dt) {
+    this.wanderTimer += dt;
+    if (this.wanderTimer >= this.wanderDelay) {
+      this.wanderTimer = 0;
+      this.wanderDelay = 3000 + Math.random() * 5000;
+
+      // Pick random wander target
+      const destinations = [
+        this.deskPos,
+        COFFEE_POS,
+        COUCH_POS,
+        // Random corridor tile
+        {x: 2 + Math.floor(Math.random() * 26), y: 8 + Math.floor(Math.random() * 4)},
+      ];
+      // Weighted random
+      const weights = [30, 25, 20, 25];
+      let total = weights.reduce((a,b) => a+b, 0);
+      let r = Math.random() * total;
+      let idx = 0;
+      for (let i = 0; i < weights.length; i++) {
+        r -= weights[i];
+        if (r <= 0) { idx = i; break; }
+      }
+      const dest = destinations[idx];
+      // Only walk if target is walkable
+      if (walkable[dest.y]?.[dest.x]) {
+        this.walkTo(dest.x, dest.y);
+      }
+    }
+  }
+
+  getStateTime() {
+    const elapsed = Date.now() - this.stateStartTime;
+    const secs = Math.floor(elapsed / 1000);
+    const mins = Math.floor(secs / 60);
+    if (mins > 0) return `${mins}m ${secs % 60}s`;
+    return `${secs}s`;
+  }
+}
+
+// ─── GAME STATE ───────────────────────────────────────────────
+const agents = AGENT_DEFS.map(def => new Agent(def));
+let selectedAgent = null;
+let zoom = 3;
+
+// ─── CANVAS SETUP ─────────────────────────────────────────────
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+function resizeCanvas() {
+  // Calculate zoom to fit
+  const containerW = window.innerWidth;
+  const containerH = window.innerHeight - 48;
+  const maxZoomW = Math.floor(containerW / NATIVE_W);
+  const maxZoomH = Math.floor(containerH / NATIVE_H);
+  zoom = Math.max(1, Math.min(maxZoomW, maxZoomH, 6));
+
+  canvas.width = NATIVE_W * zoom;
+  canvas.height = NATIVE_H * zoom;
+  ctx.imageSmoothingEnabled = false;
+
+  updateZoomDisplay();
+}
+
+function updateZoomDisplay() {
+  const zd = document.getElementById('zoom-display');
+  if (zd) zd.textContent = `${zoom}×`;
+}
+
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+// ─── SPRITE DRAWING ──────────────────────────────────────────
+// Procedural pixel sprites (no external assets needed)
+
+function drawPixelCharacter(x, y, agent, isWalking, frame) {
+  const s = zoom;
+  const bx = Math.floor(x * s);
+  const by = Math.floor(y * s);
+
+  // Body (8x10 center of 16x16 tile)
+  const cx = bx + 4*s;
+  const cy = by + 3*s;
+
+  // Head (6x5 pixels)
+  ctx.fillStyle = '#fbbf7d'; // skin
+  ctx.fillRect(cx + 1*s, cy, 6*s, 5*s);
+
+  // Hair
+  ctx.fillStyle = '#4a3520';
+  ctx.fillRect(cx + 1*s, cy, 6*s, 2*s);
+
+  // Eyes
+  ctx.fillStyle = '#1e293b';
+  if (agent.direction !== 'up') {
+    ctx.fillRect(cx + 2*s, cy + 2*s, s, s);
+    ctx.fillRect(cx + 5*s, cy + 2*s, s, s);
+  }
+
+  // Body / shirt
+  ctx.fillStyle = agent.color;
+  ctx.fillRect(cx + 1*s, cy + 5*s, 6*s, 5*s);
+
+  // Accent (tie/badge area)
+  ctx.fillStyle = agent.accent;
+  ctx.fillRect(cx + 3*s, cy + 5*s, 2*s, 3*s);
+
+  // Arms
+  ctx.fillStyle = agent.color;
+  if (isWalking) {
+    // Arm swing animation
+    const armOffset = (frame % 2 === 0) ? 0 : s;
+    ctx.fillRect(cx, cy + 5*s + armOffset, s, 4*s);
+    ctx.fillRect(cx + 7*s, cy + 5*s + (s - armOffset), s, 4*s);
+  } else {
+    ctx.fillRect(cx, cy + 5*s, s, 4*s);
+    ctx.fillRect(cx + 7*s, cy + 5*s, s, 4*s);
+  }
+
+  // Legs
+  ctx.fillStyle = '#374151';
+  if (isWalking) {
+    const legOffset = (frame % 2 === 0) ? 0 : s;
+    ctx.fillRect(cx + 2*s, cy + 10*s, 2*s, 3*s + legOffset);
+    ctx.fillRect(cx + 4*s, cy + 10*s, 2*s, 3*s + (s - legOffset));
+  } else {
+    ctx.fillRect(cx + 2*s, cy + 10*s, 2*s, 3*s);
+    ctx.fillRect(cx + 4*s, cy + 10*s, 2*s, 3*s);
+  }
+
+  // Direction indicator (facing)
+  if (agent.direction === 'left' || agent.direction === 'right') {
+    // Small visual cue — shift eyes
+    // already handled above implicitly
+  }
+
+  // Active state indicators
+  if (agent.fsmState === 'active' && agent.agentState === 'working') {
+    // Typing animation — small hands at desk
+    const typingFrame = Math.floor(agent.animFrame % 3);
+    ctx.fillStyle = '#fbbf7d';
+    ctx.fillRect(cx + (1 + typingFrame)*s, cy + 9*s, 2*s, s);
+  }
+}
+
+function drawBubble(x, y, type, agent) {
+  const s = zoom;
+  const bx = Math.floor(x * s) + 4*s;
+  const by = Math.floor(y * s) - 4*s;
+
+  // Bubble background
+  ctx.fillStyle = type === '!' ? '#fecaca' : type === '?' ? '#fef3c7' : type === '✔' ? '#bbf7d0' : '#e2e8f0';
+  ctx.fillRect(bx, by, 8*s, 6*s);
+  ctx.fillStyle = type === '!' ? '#ef4444' : type === '?' ? '#f59e0b' : type === '✔' ? '#22c55e' : '#64748b';
+  ctx.strokeStyle = ctx.fillStyle;
+  ctx.lineWidth = s;
+  ctx.strokeRect(bx, by, 8*s, 6*s);
+
+  // Icon
+  ctx.fillStyle = type === '!' ? '#dc2626' : type === '?' ? '#d97706' : type === '✔' ? '#16a34a' : '#475569';
+  ctx.font = `bold ${4*s}px monospace`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(type, bx + 4*s, by + 3*s);
+}
+
+function drawTaskLabel(x, y, text, agent) {
+  if (!text || agent.agentState === 'idle' || agent.agentState === 'offline') return;
+
+  const s = zoom;
+  const cx = Math.floor(x * s) + 8*s;
+  const cy = Math.floor(y * s) - 8*s;
+
+  ctx.font = `${Math.max(8, 3*s)}px monospace`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+
+  const maxLen = 24;
+  const display = text.length > maxLen ? text.substring(0, maxLen) + '...' : text;
+  const metrics = ctx.measureText(display);
+  const tw = metrics.width + 8;
+  const th = 3*s + 4;
+
+  // Background
+  ctx.fillStyle = 'rgba(0,0,0,0.75)';
+  const rx = cx - tw/2;
+  const ry = cy - th;
+  ctx.fillRect(rx, ry, tw, th);
+
+  // Text
+  ctx.fillStyle = '#e2e8f0';
+  ctx.fillText(display, cx, cy - 2);
+}
+
+// ─── RENDERING ────────────────────────────────────────────────
+function drawFloor() {
+  const s = zoom;
+  for (let y = 0; y < ROWS; y++) {
+    for (let x = 0; x < COLS; x++) {
+      const t = tileMap[y][x];
+      const px = x * TILE * s;
+      const py = y * TILE * s;
+      const ts = TILE * s;
+
+      switch (t) {
+        case 0: // Wall
+          ctx.fillStyle = COLORS.wall;
+          ctx.fillRect(px, py, ts, ts);
+          // Top highlight
+          ctx.fillStyle = COLORS.wallTop;
+          ctx.fillRect(px, py, ts, 2*s);
+          // Grid lines
+          ctx.strokeStyle = '#374151';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(px, py, ts, ts);
+          break;
+        case 1: // Room floor
+          ctx.fillStyle = ((x + y) % 2 === 0) ? COLORS.floorWood : COLORS.floorWoodAlt;
+          ctx.fillRect(px, py, ts, ts);
+          break;
+        case 2: // Corridor
+          ctx.fillStyle = ((x + y) % 2 === 0) ? COLORS.floorCorridor : COLORS.floorCorridorAlt;
+          ctx.fillRect(px, py, ts, ts);
+          break;
+        case 3: // Doorway
+          ctx.fillStyle = COLORS.door;
+          ctx.fillRect(px, py, ts, ts);
+          break;
+        case 4: // Furniture (drawn separately)
+          ctx.fillStyle = ((x + y) % 2 === 0) ? COLORS.floorWood : COLORS.floorWoodAlt;
+          ctx.fillRect(px, py, ts, ts);
+          break;
+        case 5: // Server room floor
+          ctx.fillStyle = ((x + y) % 2 === 0) ? COLORS.floorServer : COLORS.floorServerAlt;
+          ctx.fillRect(px, py, ts, ts);
+          break;
+      }
+    }
+  }
+}
+
+function drawFurniture() {
+  const s = zoom;
+  for (const f of furnitureList) {
+    const px = f.x * TILE * s;
+    const py = f.y * TILE * s;
+    const ts = TILE * s;
+
+    switch (f.type) {
+      case 'desk':
+        ctx.fillStyle = '#92713a';
+        ctx.fillRect(px + s, py + 2*s, ts - 2*s, ts - 4*s);
+        // Top surface
+        ctx.fillStyle = '#b8935a';
+        ctx.fillRect(px + s, py + 2*s, ts - 2*s, 3*s);
+        // Monitor on desk
+        ctx.fillStyle = '#1e293b';
+        ctx.fillRect(px + 4*s, py, 8*s, 6*s);
+        ctx.fillStyle = '#60a5fa';
+        ctx.fillRect(px + 5*s, py + s, 6*s, 4*s);
+        break;
+      case 'bookshelf':
+        ctx.fillStyle = '#8b6914';
+        ctx.fillRect(px + s, py + s, ts - 2*s, ts - 2*s);
+        // Books
+        const bookColors = ['#ef4444','#3b82f6','#22c55e','#f59e0b','#8b5cf6'];
+        for (let i = 0; i < 4; i++) {
+          ctx.fillStyle = bookColors[i % bookColors.length];
+          ctx.fillRect(px + 2*s + i*3*s, py + 2*s, 2*s, ts - 4*s);
+        }
+        break;
+      case 'coffee':
+        ctx.fillStyle = '#6b4f36';
+        ctx.fillRect(px + 3*s, py + 4*s, 10*s, 10*s);
+        ctx.fillStyle = '#a16207';
+        ctx.fillRect(px + 4*s, py + 5*s, 8*s, 4*s);
+        // Steam animation
+        if (Math.floor(Date.now() / 500) % 2 === 0) {
+          ctx.fillStyle = 'rgba(255,255,255,0.4)';
+          ctx.fillRect(px + 6*s, py + 2*s, 2*s, 3*s);
+        }
+        break;
+      case 'couch':
+        ctx.fillStyle = '#6d28d9';
+        ctx.fillRect(px + s, py + 4*s, ts - 2*s, ts - 5*s);
+        ctx.fillStyle = '#7c3aed';
+        ctx.fillRect(px + 2*s, py + 5*s, ts - 4*s, ts - 8*s);
+        break;
+      case 'server':
+        ctx.fillStyle = '#1e293b';
+        ctx.fillRect(px + 2*s, py + s, 12*s, 14*s);
+        // Blinking lights
+        const blink = Math.floor(Date.now() / 300);
+        for (let i = 0; i < 3; i++) {
+          ctx.fillStyle = ((blink + i) % 3 === 0) ? '#22c55e' : '#064e3b';
+          ctx.fillRect(px + 4*s, py + 3*s + i*4*s, 2*s, 2*s);
+          ctx.fillStyle = ((blink + i) % 4 === 0) ? '#ef4444' : '#450a0a';
+          ctx.fillRect(px + 8*s, py + 3*s + i*4*s, 2*s, 2*s);
+        }
+        break;
+      case 'plant':
+        // Pot
+        ctx.fillStyle = '#92400e';
+        ctx.fillRect(px + 4*s, py + 8*s, 8*s, 6*s);
+        // Leaves
+        ctx.fillStyle = '#22c55e';
+        ctx.fillRect(px + 3*s, py + 3*s, 10*s, 6*s);
+        ctx.fillStyle = '#16a34a';
+        ctx.fillRect(px + 5*s, py + s, 6*s, 4*s);
+        break;
+      case 'whiteboard':
+        ctx.fillStyle = '#e2e8f0';
+        ctx.fillRect(px + s, py + 2*s, ts - 2*s, ts - 4*s);
+        ctx.strokeStyle = '#94a3b8';
+        ctx.lineWidth = s;
+        ctx.strokeRect(px + s, py + 2*s, ts - 2*s, ts - 4*s);
+        // Lines on whiteboard
+        ctx.fillStyle = '#3b82f6';
+        for (let i = 0; i < 3; i++) {
+          ctx.fillRect(px + 3*s, py + 4*s + i*3*s, 8*s, s);
+        }
+        break;
+      case 'board':
+        ctx.fillStyle = '#f97316';
+        ctx.fillRect(px + 2*s, py + 2*s, 12*s, 12*s);
+        ctx.fillStyle = '#fed7aa';
+        ctx.fillRect(px + 3*s, py + 3*s, 10*s, 10*s);
+        // Chart bars
+        ctx.fillStyle = '#f97316';
+        ctx.fillRect(px + 4*s, py + 8*s, 2*s, 4*s);
+        ctx.fillRect(px + 7*s, py + 5*s, 2*s, 7*s);
+        ctx.fillRect(px + 10*s, py + 6*s, 2*s, 6*s);
+        break;
+    }
+  }
+}
+
+function drawRoomLabels() {
+  const s = zoom;
+  ctx.font = `${Math.max(7, 2.5*s)}px monospace`;
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(255,255,255,0.25)';
+
+  const labels = [
+    {text: 'COMMAND', x: 4, y: 5.5},
+    {text: 'ENGINEERING', x: 11, y: 5.5},
+    {text: 'SECURITY', x: 18, y: 5.5},
+    {text: 'RESEARCH', x: 25, y: 5.5},
+    {text: 'SALES', x: 4, y: 17.5},
+    {text: 'BREAK ROOM', x: 14.5, y: 15},
+    {text: 'SERVERS', x: 25, y: 17.5},
+  ];
+
+  for (const l of labels) {
+    ctx.fillText(l.text, l.x * TILE * s + 8*s, l.y * TILE * s);
+  }
+}
+
+function render() {
+  const s = zoom;
+  // Clear
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Floor & walls
+  drawFloor();
+
+  // Room labels (under furniture)
+  drawRoomLabels();
+
+  // Furniture
+  drawFurniture();
+
+  // Agents (Y-sorted)
+  const sortedAgents = [...agents].sort((a, b) => a.py - b.py);
+  for (const agent of sortedAgents) {
+    const isWalking = agent.fsmState === 'walking';
+    drawPixelCharacter(agent.px, agent.py, agent, isWalking, agent.walkFrame);
+
+    // Selection highlight
+    if (agent === selectedAgent) {
+      ctx.strokeStyle = '#60a5fa';
+      ctx.lineWidth = s;
+      ctx.strokeRect(
+        Math.floor(agent.px * s) + 2*s,
+        Math.floor(agent.py * s) + s,
+        12*s, 14*s
+      );
+    }
+
+    // Bubble
+    if (agent.bubbleType) {
+      drawBubble(agent.px, agent.py, agent.bubbleType, agent);
+    }
+
+    // Task label
+    if (agent.fsmState === 'active' || agent.agentState === 'working' || agent.agentState === 'researching') {
+      drawTaskLabel(agent.px, agent.py, agent.task, agent);
+    }
+
+    // Name label (always visible)
+    ctx.font = `bold ${Math.max(7, 2.5*s)}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = agent.color;
+    ctx.fillText(agent.name, Math.floor(agent.px * s) + 8*s, Math.floor(agent.py * s) + TILE*s + 4*s);
+  }
+}
+
+// ─── INPUT HANDLING ───────────────────────────────────────────
+canvas.addEventListener('click', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = (e.clientX - rect.left) / zoom / TILE;
+  const my = (e.clientY - rect.top) / zoom / TILE;
+
+  // Check if clicking on an agent
+  let clicked = null;
+  for (const agent of agents) {
+    const ax = agent.px / TILE;
+    const ay = agent.py / TILE;
+    if (mx >= ax && mx < ax + 1 && my >= ay && my < ay + 1) {
+      clicked = agent;
+      break;
+    }
+  }
+
+  if (clicked) {
+    selectedAgent = clicked;
+    showStatusPanel(clicked);
+    updateToolbar();
+  } else {
+    selectedAgent = null;
+    hideStatusPanel();
+    updateToolbar();
+  }
+});
+
+// ─── STATUS PANEL ─────────────────────────────────────────────
+const panel = document.getElementById('status-panel');
+
+function showStatusPanel(agent) {
+  panel.classList.add('visible');
+  updateStatusPanel(agent);
+}
+
+function hideStatusPanel() {
+  panel.classList.remove('visible');
+}
+
+function updateStatusPanel(agent) {
+  if (!agent) return;
+  document.getElementById('panel-dot').style.backgroundColor = STATUS_COLORS[agent.agentState] || '#6b7280';
+  document.getElementById('panel-agent-name').textContent = `${agent.name} — ${agent.role}`;
+  document.getElementById('panel-status').textContent = agent.agentState.replace('_', ' ');
+  document.getElementById('panel-time').textContent = agent.getStateTime();
+  document.getElementById('panel-task').textContent = agent.task || 'None';
+  const actDiv = document.getElementById('panel-activity');
+  actDiv.innerHTML = agent.activityLog.map(a => `• ${a}`).join('<br>') || 'No recent activity';
+}
+
+document.getElementById('panel-close').addEventListener('click', () => {
+  selectedAgent = null;
+  hideStatusPanel();
+  updateToolbar();
+});
+
+// ─── TOOLBAR ──────────────────────────────────────────────────
+function buildToolbar() {
+  const tb = document.getElementById('toolbar');
+  tb.innerHTML = '';
+
+  for (const agent of agents) {
+    const btn = document.createElement('button');
+    btn.className = 'agent-btn' + (agent === selectedAgent ? ' selected' : '');
+    btn.innerHTML = `<span class="status-dot" style="background:${STATUS_COLORS[agent.agentState]}"></span>${agent.name}`;
+    btn.addEventListener('click', () => {
+      selectedAgent = agent;
+      showStatusPanel(agent);
+      updateToolbar();
+    });
+    tb.appendChild(btn);
+  }
+
+  const zoomDisp = document.createElement('span');
+  zoomDisp.id = 'zoom-display';
+  zoomDisp.textContent = `${zoom}×`;
+  tb.appendChild(zoomDisp);
+}
+
+function updateToolbar() {
+  buildToolbar();
+}
+
+buildToolbar();
+
+// ─── TOAST NOTIFICATIONS ─────────────────────────────────────
+function showToast(text, type) {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type || 'blue'}`;
+  toast.textContent = text;
+  container.appendChild(toast);
+
+  // Max 4
+  while (container.children.length > 4) {
+    container.removeChild(container.firstChild);
+  }
+
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transition = 'opacity 0.3s';
+    setTimeout(() => toast.remove(), 300);
+  }, 4000);
+}
+
+// ─── REAL-TIME POLLING (state.json) ───────────────────────────
+let isLiveMode = false;
+let lastKnownUpdate = 0;
+let fetchFailCount = 0;
+const MAX_FAIL_BEFORE_DEMO = 5;
+
+// Demo fallback data (used only when state.json is unavailable)
+const demoTasks = {
+  printy: [
+    {state: 'working', task: 'Coordinating sprint planning'},
+    {state: 'idle', task: ''},
+    {state: 'working', task: 'Reviewing agent reports'},
+    {state: 'idle', task: ''},
+  ],
+  forge: [
+    {state: 'working', task: 'Building pixel office'},
+    {state: 'idle', task: ''},
+    {state: 'researching', task: 'Investigating WebSocket protocol'},
+    {state: 'idle', task: ''},
+  ],
+  sentinel: [
+    {state: 'working', task: 'Running security audit'},
+    {state: 'idle', task: ''},
+    {state: 'working', task: 'Scanning for vulnerabilities'},
+    {state: 'idle', task: ''},
+  ],
+  cipher: [
+    {state: 'researching', task: 'Analyzing competitor APIs'},
+    {state: 'idle', task: ''},
+    {state: 'researching', task: 'Deep-diving WebSocket specs'},
+    {state: 'idle', task: ''},
+  ],
+  vanta: [
+    {state: 'working', task: 'Crafting sales pitch'},
+    {state: 'idle', task: ''},
+    {state: 'working', task: 'Preparing client demo'},
+    {state: 'idle', task: ''},
+  ],
+};
+const demoIndices = {};
+agents.forEach(a => demoIndices[a.id] = 0);
+let demoInterval = null;
+
+function setMode(live) {
+  if (isLiveMode === live) return;
+  isLiveMode = live;
+  const indicator = document.getElementById('mode-indicator');
+  const label = document.getElementById('mode-label');
+  if (live) {
+    indicator.className = 'live';
+    label.textContent = 'LIVE';
+    // Stop demo loop if running
+    if (demoInterval) { clearInterval(demoInterval); demoInterval = null; }
+  } else {
+    indicator.className = 'demo';
+    label.textContent = 'DEMO';
+    // Start demo loop
+    if (!demoInterval) {
+      demoInterval = setInterval(demoTick, 5000 + Math.random() * 3000);
+    }
+  }
+}
+
+function demoTick() {
+  const agent = agents[Math.floor(Math.random() * agents.length)];
+  const tasks = demoTasks[agent.id];
+  const idx = demoIndices[agent.id];
+  const task = tasks[idx % tasks.length];
+  demoIndices[agent.id] = (idx + 1) % tasks.length;
+
+  const oldState = agent.agentState;
+  agent.setState(task.state, task.task || '');
+
+  if (task.state === 'working') {
+    showToast(`${agent.name} started: ${task.task}`, 'blue');
+  } else if (task.state === 'idle' && oldState === 'working') {
+    showToast(`${agent.name} completed task`, 'green');
+  } else if (task.state === 'blocked') {
+    showToast(`${agent.name} blocked: ${task.task}`, 'red');
+  } else if (task.state === 'researching') {
+    showToast(`${agent.name} researching: ${task.task}`, 'blue');
+  }
+  updateToolbar();
+}
+
+function applyStateUpdate(data) {
+  if (!data || !data.agents) return;
+
+  // Only process if lastUpdate is newer than what we've seen
+  if (data.lastUpdate <= lastKnownUpdate) return;
+  lastKnownUpdate = data.lastUpdate;
+
+  for (const agentId of Object.keys(data.agents)) {
+    const agentObj = agents.find(a => a.id === agentId);
+    if (!agentObj) continue;
+
+    const incoming = data.agents[agentId];
+    const newState = incoming.state || 'idle';
+    const newTask = incoming.task || '';
+
+    // Only trigger state change if actually different
+    if (agentObj.agentState !== newState || agentObj.task !== newTask) {
+      const oldState = agentObj.agentState;
+      agentObj.setState(newState, newTask);
+
+      // Toast for meaningful transitions
+      if (newState === 'working' && oldState !== 'working') {
+        showToast(`${agentObj.name} started: ${newTask}`, 'blue');
+      } else if (newState === 'idle' && oldState === 'working') {
+        showToast(`${agentObj.name} completed task`, 'green');
+      } else if (newState === 'blocked') {
+        showToast(`${agentObj.name} blocked: ${newTask}`, 'red');
+      } else if (newState === 'waiting_approval') {
+        showToast(`${agentObj.name} needs approval`, 'amber');
+      } else if (newState === 'researching' && oldState !== 'researching') {
+        showToast(`${agentObj.name} researching: ${newTask}`, 'blue');
+      } else if (newState === 'offline' && oldState !== 'offline') {
+        showToast(`${agentObj.name} went offline`, 'gray');
+      }
+    }
+  }
+  updateToolbar();
+}
+
+async function pollState() {
+  try {
+    const resp = await fetch('state.json?t=' + Date.now(), { cache: 'no-store' });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+
+    // Successful fetch — check if state file has real data (lastUpdate > 0)
+    if (data.lastUpdate > 0) {
+      fetchFailCount = 0;
+      setMode(true);
+      applyStateUpdate(data);
+    } else {
+      // State file exists but has never been written to (all zeros)
+      fetchFailCount++;
+      if (fetchFailCount >= MAX_FAIL_BEFORE_DEMO) {
+        setMode(false);
+      }
+    }
+  } catch (err) {
+    fetchFailCount++;
+    if (fetchFailCount >= MAX_FAIL_BEFORE_DEMO) {
+      setMode(false);
+    }
+  }
+}
+
+// Start polling every 2 seconds
+setInterval(pollState, 2000);
+
+// First poll immediately
+pollState();
+
+// ─── GAME LOOP ────────────────────────────────────────────────
+let lastTime = 0;
+
+function gameLoop(timestamp) {
+  const dt = timestamp - lastTime;
+  lastTime = timestamp;
+
+  // Update agents
+  for (const agent of agents) {
+    agent.update(dt);
+  }
+
+  // Update status panel if open
+  if (selectedAgent) {
+    updateStatusPanel(selectedAgent);
+  }
+
+  // Render
+  render();
+
+  requestAnimationFrame(gameLoop);
+}
+
+requestAnimationFrame(gameLoop);
+
+// ─── INITIAL STATE ────────────────────────────────────────────
+// All agents start idle; real state comes from state.json polling
+// or demo mode kicks in after a few failed fetches.
+agents.forEach(a => a.setState('idle', ''));
+
+console.log('🏢 Pixel Office v2 — Company OS Visualization');
+console.log('Polling state.json every 2s. LIVE when real data arrives, DEMO as fallback.');
+console.log('Update state: ./update-state.sh <agent> <state> [task]');
+</script>
+</body>
+</html>

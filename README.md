@@ -2,6 +2,8 @@
 
 This repo packages **OpenClaw** for Railway with a small **/setup** web wizard so users can deploy and onboard **without running any commands**.
 
+> **🏢 Company OS included** — This template comes with a **multi-agent system** out of the box. Five specialized AI agents (Coordinator, Builder, Reviewer, Researcher, Outreach) work as a team, delegating tasks to each other automatically. See [COMPANY-OS.md](COMPANY-OS.md) for full documentation.
+
 ## What you get
 
 - **OpenClaw Gateway + Control UI** (served at `/` and `/openclaw`)
@@ -9,6 +11,7 @@ This repo packages **OpenClaw** for Railway with a small **/setup** web wizard s
 - Persistent state via **Railway Volume** (so config/credentials/memory survive redeploys)
 - One-click **Export backup** (so users can migrate off Railway later)
 - **Import backup** from `/setup` (advanced recovery)
+- **Company OS multi-agent system** with 5 specialized roles and a pixel-art office dashboard
 
 ## How it works (high level)
 
@@ -47,6 +50,28 @@ Then:
   - Your browser will prompt for **HTTP Basic auth**. Use any username; the password is `SETUP_PASSWORD`.
 - Complete setup
 - Visit `https://<your-app>.up.railway.app/` and `/openclaw` (same Basic auth)
+
+## Company OS — Multi-Agent System
+
+This template includes **Company OS**, a multi-agent system where 5 AI agents work as a team:
+
+| Agent | Role |
+|-------|------|
+| **Coordinator** | Routes work, manages priorities (default — receives your messages) |
+| **Builder** | Writes code, builds features, deploys |
+| **Reviewer** | Reviews work, catches issues, ensures quality |
+| **Researcher** | Investigates topics, gathers data, analyzes |
+| **Outreach** | Handles emails, social media, external comms |
+
+Agents hand off work to each other automatically. Send a complex task and the Coordinator will delegate to the right specialist(s), running up to 4 sub-agents in parallel.
+
+**Included files:**
+- `config/openclaw-template.json` — Agent configuration (roles, models, permissions)
+- `workspace/AGENTS.md` — Agent behavior guidelines
+- `workspace/SOUL.md` — Team personality and principles
+- `workspace/pixel-office/` — Pixel-art office dashboard showing agent activity
+
+📖 **Full documentation:** [COMPANY-OS.md](COMPANY-OS.md)
 
 ## Support / community
 

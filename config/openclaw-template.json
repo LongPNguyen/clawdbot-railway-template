@@ -1,0 +1,21 @@
+{
+  "agents": {
+    "defaults": {
+      "model": { "primary": "anthropic/claude-sonnet-4-5" },
+      "subagents": { "maxConcurrent": 4 }
+    },
+    "list": [
+      { "id": "coordinator", "name": "Coordinator", "default": true, "subagents": { "allowAgents": ["*"] } },
+      { "id": "builder", "name": "Builder", "subagents": { "allowAgents": ["*"] } },
+      { "id": "reviewer", "name": "Reviewer", "subagents": { "allowAgents": ["*"] } },
+      { "id": "researcher", "name": "Researcher", "subagents": { "allowAgents": ["*"] } },
+      { "id": "outreach", "name": "Outreach", "subagents": { "allowAgents": ["*"] } }
+    ]
+  },
+  "tools": {
+    "agentToAgent": {
+      "enabled": true,
+      "allow": ["coordinator", "builder", "reviewer", "researcher", "outreach"]
+    }
+  }
+}
