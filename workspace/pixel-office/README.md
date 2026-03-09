@@ -141,28 +141,191 @@ const ct = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }
 
 ### Creating Custom Themes
 
-Add a new theme by creating a file in `src/themes/`:
+Every theme implements the `Theme` interface from `src/themes/types.ts`. Here's the full process:
+
+#### Step 1: Create your theme file
 
 ```typescript
-// src/themes/my-theme.ts
-import type { Theme } from './types';
+// src/themes/cyberpunk-lab.ts
+import type { Theme, FurnitureItem } from './types';
+import type { Agent } from '../agent';
+import { TILE, AGENT_DEFS, STATUS_COLORS } from '../config';
 
-export class MyTheme implements Theme {
-  id = 'my-theme';
-  name = 'My Theme';
-  backgroundColor = '#1a1a2e';
-  cols = 40;  // Custom grid width
-  rows = 25;  // Custom grid height
-  // ... implement the Theme interface
+export class CyberpunkLabTheme implements Theme {
+  id = 'cyberpunk-lab';
+  name = 'Cyberpunk Lab';
+  backgroundColor = '#0a0a1a';  // Dark neon background
+  
+  // Grid dimensions — landscape, portrait, or square. Your call.
+  cols = 40;  // tiles wide
+  rows = 25;  // tiles tall
+  
+  // These get populated in init()
+  tileMap: number[][] = [];
+  roomMap: (string | null)[][] = [];
+  walkable: boolean[][] = [];
+  furniture: FurnitureItem[] = [];
+
+  init() {
+    // Build your world grid
+    // Tile types: 0=wall, 1=floor, 3=door, 4=furniture, 11=sky/empty, 20=exterior
+    const C = this.cols!, R = this.rows!;
+    for (let y = 0; y < R; y++) {
+      this.tileMap[y] = []; this.roomMap[y] = []; this.walkable[y] = [];
+      for (let x = 0; x < C; x++) {
+        this.tileMap[y][x] = 11;      // default: empty/sky
+        this.roomMap[y][x] = null;     // no room assignment
+        this.walkable[y][x] = false;   // not walkable by default
+      }
+    }
+
+    // Helper to fill rectangular areas
+    const fill = (x1: number, y1: number, x2: number, y2: number, tile: number, zone?: string) => {
+      for (let y = y1; y <= y2; y++)
+        for (let x = x1; x <= x2; x++)
+          if (y >= 0 && y < R && x >= 0 && x < C) {
+            this.tileMap[y][x] = tile;
+            if (zone) this.roomMap[y][x] = zone;
+          }
+    };
+
+    // Example: build a room
+    fill(5, 5, 35, 20, 1, 'main-lab');    // floor
+    fill(5, 5, 35, 5, 0);                  // top wall
+    fill(5, 20, 35, 20, 0);                // bottom wall
+    fill(5, 5, 5, 20, 0);                  // left wall
+    fill(35, 5, 35, 20, 0);                // right wall
+    fill(19, 5, 21, 5, 3);                 // door in top wall
+
+    // Add furniture
+    this.furniture.push({ x: 10, y: 10, type: 'desk', color: '#4040ff' });
+
+    // Build walkable grid (floor + doors are walkable)
+    for (let y = 0; y < R; y++)
+      for (let x = 0; x < C; x++)
+        this.walkable[y][x] = (this.tileMap[y][x] === 1 || this.tileMap[y][x] === 3);
+  }
+
+  drawWorld(ctx: CanvasRenderingContext2D, time: number) {
+    // Draw every tile
+    for (let y = 0; y < this.rows!; y++)
+      for (let x = 0; x < this.cols!; x++) {
+        const t = this.tileMap[y][x];
+        const px = x * TILE, py = y * TILE;
+        if (t === 11) {
+          ctx.fillStyle = this.backgroundColor;
+        } else if (t === 0) {
+          ctx.fillStyle = '#2a2a4a';  // walls
+        } else if (t === 1) {
+          ctx.fillStyle = (x + y) % 2 === 0 ? '#1a1a3a' : '#1e1e3e';  // floor checkerboard
+        } else if (t === 3) {
+          ctx.fillStyle = '#3a3a5a';  // doors
+        }
+        ctx.fillRect(px, py, TILE, TILE);
+      }
+
+    // Draw furniture
+    for (const f of this.furniture) {
+      ctx.fillStyle = f.color;
+      ctx.fillRect(f.x * TILE + 2, f.y * TILE + 4, TILE - 4, TILE - 4);
+    }
+  }
+
+  drawCharacter(ctx: CanvasRenderingContext2D, agent: Agent, time: number) {
+    // Draw your character sprite at agent.px, agent.py
+    // agent.px/py are pixel positions (tile * TILE)
+    const x = agent.px, y = agent.py;
+    
+    // Simple example — colored circle with name
+    const color = STATUS_COLORS[agent.agentState] || '#888';
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x + 8, y + 8, 6, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // You can get much fancier — see one-piece.ts for full character drawing
+  }
+
+  drawEffects(ctx: CanvasRenderingContext2D, time: number) {
+    // Optional: particles, weather, ambient animations
+  }
+
+  drawOverlay(ctx: CanvasRenderingContext2D, viewW: number, viewH: number, time: number) {
+    // Optional: screen-space effects (day/night tinting, scanlines, etc.)
+    // This draws AFTER camera restore, so coordinates are screen-space
+  }
 }
 ```
 
-Then register it in `src/main.ts`:
+#### Step 2: Set agent positions for your theme
+
+If your theme has a different layout, define where agents sit:
 
 ```typescript
-import { MyTheme } from './themes/my-theme';
-const themes: Theme[] = [new OnePieceTheme(), new ModernOfficeTheme(), new MyTheme()];
+// In your theme file, add position overrides
+const MY_POSITIONS: Record<string, { deskPos: { x: number; y: number }; room: string }> = {
+  'coordinator': { deskPos: { x: 10, y: 10 }, room: 'Command Center' },
+  'builder':     { deskPos: { x: 20, y: 10 }, room: 'Build Lab' },
+  'reviewer':    { deskPos: { x: 10, y: 15 }, room: 'Review Bay' },
+  // ...
+};
+
+// Add this method to your theme class:
+getAgentOverrides(id: string) {
+  return MY_POSITIONS[id] || null;
+}
 ```
+
+#### Step 3: Register the theme
+
+In `src/main.ts`, import and add your theme:
+
+```typescript
+import { CyberpunkLabTheme } from './themes/cyberpunk-lab';
+
+const themes: Theme[] = [
+  new OnePieceTheme(),
+  new ModernOfficeTheme(),
+  new CyberpunkLabTheme(),  // Your new theme!
+];
+```
+
+#### Step 4: Build and test
+
+```bash
+npx vite build
+# Refresh the page — your theme appears in the switcher
+```
+
+#### Theme Interface Reference
+
+| Method | Required | Description |
+|--------|----------|-------------|
+| `init()` | ✅ | Build tile map, room map, walkable grid, furniture |
+| `drawWorld()` | ✅ | Draw background, floors, walls, furniture |
+| `drawCharacter()` | ✅ | Draw a single agent sprite |
+| `drawEffects()` | ✅ | Draw particle effects, weather (can be empty) |
+| `drawOverlay()` | ✅ | Screen-space effects like day/night (can be empty) |
+
+| Property | Required | Description |
+|----------|----------|-------------|
+| `id` | ✅ | Unique string ID (used in localStorage) |
+| `name` | ✅ | Display name in theme switcher |
+| `backgroundColor` | ✅ | Canvas clear color |
+| `cols` | Optional | Grid width in tiles (default: 30) |
+| `rows` | Optional | Grid height in tiles (default: 50) |
+| `tileMap` | ✅ | 2D array of tile types |
+| `walkable` | ✅ | 2D boolean array for pathfinding |
+| `roomMap` | ✅ | 2D array of room zone names |
+| `furniture` | ✅ | Array of furniture items |
+
+#### Tips
+
+- **Start by copying `modern-office.ts`** and modifying it — much easier than starting from scratch
+- **Landscape layouts** (wide `cols`, short `rows`) work better for desktop
+- **The camera auto-fits** to your grid dimensions, so any size works
+- **Use `time` parameter** in draw methods for animations (`Math.sin(time * speed)`)
+- **Tile size is 16px** — each grid cell is 16×16 pixels on the native canvas
 
 ### state.json Format
 
