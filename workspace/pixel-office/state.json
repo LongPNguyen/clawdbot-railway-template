@@ -1,30 +1,30 @@
 {
   "agents": {
-    "coordinator": {
-      "state": "idle",
-      "task": null,
-      "updatedAt": 0
+    "printy": {
+      "state": "working",
+      "task": "Conversation info (untrusted metadata):\n```json\n{\n  \"message_id\": \"4508\",\n  \"...",
+      "updatedAt": 1773090181
     },
-    "builder": {
+    "forge": {
       "state": "idle",
       "task": null,
-      "updatedAt": 0
+      "updatedAt": 1773090181
     },
-    "reviewer": {
+    "sentinel": {
       "state": "idle",
       "task": null,
-      "updatedAt": 0
+      "updatedAt": 1773090181
     },
-    "researcher": {
+    "vanta": {
       "state": "idle",
       "task": null,
-      "updatedAt": 0
+      "updatedAt": 1773090181
     },
-    "outreach": {
+    "cipher": {
       "state": "idle",
       "task": null,
-      "updatedAt": 0
+      "updatedAt": 1773090181
     }
   },
-  "lastUpdate": 0
+  "lastUpdate": 1773090181
 }
